@@ -28,9 +28,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Fix missing erlsom dependency
+      - name: Fix missing erlsom poolboy dependency
         run: |
           echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
+          echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo "---- deps added ----"
+          grep -E 'erlsom|poolboy' make/deps.mk
           cat make/deps.mk | grep erlsom
       - uses: actions/cache@v4
         with:
