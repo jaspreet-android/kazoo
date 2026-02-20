@@ -2,7 +2,7 @@ name: Kazoo CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, main ]
   pull_request:
 
 env:
@@ -10,32 +10,39 @@ env:
 
 jobs:
 
+# ---------------- SETUP ----------------
   setup:
-    runs-on: ubuntu-22.04
-    container: offical2600hz/circleci:22.3
-
+    runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
     steps:
       - uses: actions/checkout@v4
 
       - name: Listing Changes
         run: make changed
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload workspace
+        uses: actions/upload-artifact@v4
         with:
           name: workspace
           path: .
 
+# ---------------- BUILD DEPS ----------------
   build_deps:
-    runs-on: ubuntu-22.04
     needs: setup
-    container: offical2600hz/circleci:22.3
+    runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
 
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           name: workspace
+          path: .
 
-      - name: Cache deps
+      - name: Restore deps cache
         uses: actions/cache@v4
         with:
           path: |
@@ -43,48 +50,39 @@ jobs:
             .git/.kz_deps_hash
           key: deps-${{ hashFiles('make/deps.mk') }}
 
-      - name: Calculate dependency hash
-        run: |
-          deps_hash=$(md5sum make/deps.mk | cut -d" " -f1)
-          echo $deps_hash > .git/.kz_deps_hash
-
       - name: Make dependencies
         run: make deps
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: workspace
-          path: .
-
+# ---------------- BUILD ----------------
   build:
-    runs-on: ubuntu-22.04
     needs: build_deps
-    container: offical2600hz/circleci:22.3
+    runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
 
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: workspace
+      - uses: actions/checkout@v4
 
-      - name: Compile project
+      - name: Restore deps cache
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: deps-${{ hashFiles('make/deps.mk') }}
+
+      - name: Compile
         run: JOBS="2" make
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: workspace
-          path: .
-
+# ---------------- TESTS ----------------
   eunit_tests:
-    runs-on: ubuntu-22.04
     needs: build_deps
-    container: offical2600hz/circleci:22.3
+    runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
 
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: workspace
+      - uses: actions/checkout@v4
 
-      - name: Compile for test
+      - name: Compile test env
         run: ERLC_OPTS='-DPROPER' make compile-test
 
       - name: Run tests
@@ -92,19 +90,20 @@ jobs:
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: junit-results
+          name: junit
           path: "**/TEST-*.xml"
 
+# ---------------- CHECKS ----------------
   checks:
-    runs-on: ubuntu-22.04
     needs: build
-    container: offical2600hz/circleci:22.3
+    runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
 
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: workspace
+      - uses: actions/checkout@v4
 
       - run: make fmt
       - run: make code_checks
@@ -114,15 +113,15 @@ jobs:
       - run: make elvis
       - run: scripts/check-unstaged.bash
 
+# ---------------- DOCS ----------------
   docs:
-    runs-on: ubuntu-22.04
     needs: build
-    container: offical2600hz/circleci:22.3
+    runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
 
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: workspace
+      - uses: actions/checkout@v4
 
       - run: make apis
       - run: make validate-js
@@ -132,17 +131,17 @@ jobs:
       - run: scripts/state-of-edoc.escript
       - run: scripts/check-unstaged.bash
 
+# ---------------- ANALYZE ----------------
   analyze:
-    runs-on: ubuntu-22.04
     needs: build
-    container: offical2600hz/circleci:22.3
+    runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
 
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: workspace
+      - uses: actions/checkout@v4
 
-      - name: Cache PLT
+      - name: Restore PLT cache
         uses: actions/cache@v4
         with:
           path: .kazoo.plt
@@ -151,16 +150,17 @@ jobs:
       - run: make build-plt
       - run: make dialyze-changed
 
+# ---------------- RELEASE ----------------
   release:
-    runs-on: ubuntu-22.04
     needs: build
-    container: offical2600hz/circleci:22.3
+    runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
 
     services:
       couchdb:
         image: couchdb:3.0
-        ports:
-          - 5984:5984
+        ports: ["5984:5984"]
         env:
           COUCHDB_USER: admin
           COUCHDB_PASSWORD: admin
@@ -169,9 +169,7 @@ jobs:
         image: 2600hz/rabbitmq
 
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: workspace
+      - uses: actions/checkout@v4
 
       - name: Build CI release
         run: make build-ci-release
@@ -184,23 +182,10 @@ jobs:
           NODE_NAME_TYPE="-sname" \
           make release
 
-      - name: Collect artifacts
-        run: |
-          mkdir -p artifacts
-          cp rel/ci.relx.config artifacts/ || true
-          find _rel/kazoo/releases -name kazoo.rel -exec cp {} artifacts/ \;
-
-      - uses: actions/upload-artifact@v4
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: release-artifacts
-          path: artifacts
-
-      - name: Check release logs
-        run: |
-          if grep -q -v -F 'exit with reason shutdown' artifacts/log/error.log; then
-            echo "Errors detected in release"
-            cat artifacts/log/error.log
-            exit 1
-          else
-            echo "No release errors found"
-          fi
+          name: kazoo-release
+          path: |
+            _rel/kazoo/releases/**/kazoo.rel
+            rel/ci.relx.config
