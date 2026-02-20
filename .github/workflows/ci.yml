@@ -54,6 +54,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Fix missing erlsom poolboy dependency
+        run: |
+          echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
+          echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo "---- deps added ----"
+          grep -E 'erlsom|poolboy' make/deps.mk
       - run: JOBS="2" make
 
 # ---------------- TESTS ----------------
@@ -66,6 +72,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Fix missing erlsom poolboy dependency
+        run: |
+          echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
+          echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo "---- deps added ----"
+          grep -E 'erlsom|poolboy' make/deps.mk
       - run: ERLC_OPTS='-DPROPER' make compile-test
       - run: make eunit
 
@@ -79,6 +91,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Fix missing erlsom poolboy dependency
+        run: |
+          echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
+          echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo "---- deps added ----"
+          grep -E 'erlsom|poolboy' make/deps.mk
       - run: make fmt
       - run: make code_checks
       - run: make app_applications
@@ -97,6 +115,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Fix missing erlsom poolboy dependency
+        run: |
+          echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
+          echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo "---- deps added ----"
+          grep -E 'erlsom|poolboy' make/deps.mk
       - run: make apis
       - run: make validate-js
       - run: make validate-schemas
@@ -115,11 +139,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
+      
       - uses: actions/cache@v4
         with:
           path: .kazoo.plt
           key: plt-${{ hashFiles('make/deps.mk') }}
+      - name: Fix missing erlsom poolboy dependency
+        run: |
+          echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
+          echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo "---- deps added ----"
+          grep -E 'erlsom|poolboy' make/deps.mk
 
       - run: make build-plt
       - run: make dialyze-changed
@@ -148,7 +178,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
+      - name: Fix missing erlsom poolboy dependency
+        run: |
+          echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
+          echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo "---- deps added ----"
+          grep -E 'erlsom|poolboy' make/deps.mk
+          cat make/deps.mk | grep erlsom
       - run: mkdir -p /tmp/artifacts
       - run: make build-ci-release
 
