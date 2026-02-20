@@ -14,7 +14,7 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     container: offical2600hz/circleci:22.3
-
+    options: --user 0
     steps:
       - uses: actions/checkout@v4
 
@@ -32,7 +32,7 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     container: offical2600hz/circleci:22.3
-
+    options: --user 0
     steps:
       - uses: actions/checkout@v4
 
@@ -52,7 +52,7 @@ jobs:
     needs: build_deps
     runs-on: ubuntu-latest
     container: offical2600hz/circleci:22.3
-
+    options: --user 0
     steps:
       - uses: actions/checkout@v4
 
@@ -64,7 +64,7 @@ jobs:
     needs: build_deps
     runs-on: ubuntu-latest
     container: offical2600hz/circleci:22.3
-
+    options: --user 0
     steps:
       - uses: actions/checkout@v4
 
@@ -86,7 +86,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     container: offical2600hz/circleci:22.3
-
+    options: --user 0
     steps:
       - uses: actions/checkout@v4
       - run: make fmt
@@ -102,7 +102,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     container: offical2600hz/circleci:22.3
-
+    options: --user 0
     steps:
       - uses: actions/checkout@v4
       - run: make apis
@@ -118,7 +118,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     container: offical2600hz/circleci:22.3
-
+    options: --user 0
     steps:
       - uses: actions/checkout@v4
 
@@ -137,7 +137,7 @@ jobs:
     runs-on: ubuntu-latest
 
     container: offical2600hz/circleci:22.3
-
+    options: --user 0
     services:
       couchdb:
         image: couchdb:3.0
