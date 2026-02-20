@@ -28,7 +28,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
+      - name: Fix missing erlsom dependency
+        run: |
+          echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
+          cat make/deps.mk | grep erlsom
       - uses: actions/cache@v4
         with:
           path: |
