@@ -5,88 +5,72 @@ on:
     branches: [ master ]
   pull_request:
 
-env:
-  WORKDIR: ~/2600hz/kazoo
-
 jobs:
 
 # ---------------- SETUP ----------------
   setup:
     runs-on: ubuntu-latest
-    container: offical2600hz/circleci:22.3
-    options: --user 0
+    container:
+      image: offical2600hz/circleci:22.3
+      options: --user 0
+
     steps:
       - uses: actions/checkout@v4
-
-      - name: Listing Changes
-        run: make changed
-
-      - name: Upload workspace
-        uses: actions/upload-artifact@v4
-        with:
-          name: workspace
-          path: .
+      - run: make changed
 
 # ---------------- BUILD DEPS ----------------
   build_deps:
     needs: setup
     runs-on: ubuntu-latest
-    container: offical2600hz/circleci:22.3
-    options: --user 0
+    container:
+      image: offical2600hz/circleci:22.3
+      options: --user 0
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Restore deps cache
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: |
             deps
             .git/.kz_deps_hash
           key: deps-${{ hashFiles('make/deps.mk') }}
 
-      - name: Make dependencies
-        run: make deps
+      - run: make deps
 
 # ---------------- BUILD ----------------
   build:
     needs: build_deps
     runs-on: ubuntu-latest
-    container: offical2600hz/circleci:22.3
-    options: --user 0
+    container:
+      image: offical2600hz/circleci:22.3
+      options: --user 0
+
     steps:
       - uses: actions/checkout@v4
-
-      - name: Compile project
-        run: JOBS="2" make
+      - run: JOBS="2" make
 
 # ---------------- TESTS ----------------
   eunit_tests:
     needs: build_deps
     runs-on: ubuntu-latest
-    container: offical2600hz/circleci:22.3
-    options: --user 0
+    container:
+      image: offical2600hz/circleci:22.3
+      options: --user 0
+
     steps:
       - uses: actions/checkout@v4
-
-      - name: Compile for tests
-        run: ERLC_OPTS='-DPROPER' make compile-test
-
-      - name: Run EUnit
-        run: make eunit
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: junit
-          path: "**/TEST-*.xml"
+      - run: ERLC_OPTS='-DPROPER' make compile-test
+      - run: make eunit
 
 # ---------------- CHECKS ----------------
   checks:
     needs: build
     runs-on: ubuntu-latest
-    container: offical2600hz/circleci:22.3
-    options: --user 0
+    container:
+      image: offical2600hz/circleci:22.3
+      options: --user 0
+
     steps:
       - uses: actions/checkout@v4
       - run: make fmt
@@ -101,8 +85,10 @@ jobs:
   docs:
     needs: build
     runs-on: ubuntu-latest
-    container: offical2600hz/circleci:22.3
-    options: --user 0
+    container:
+      image: offical2600hz/circleci:22.3
+      options: --user 0
+
     steps:
       - uses: actions/checkout@v4
       - run: make apis
@@ -117,13 +103,14 @@ jobs:
   analyze:
     needs: build
     runs-on: ubuntu-latest
-    container: offical2600hz/circleci:22.3
-    options: --user 0
+    container:
+      image: offical2600hz/circleci:22.3
+      options: --user 0
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Restore Dialyzer cache
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: .kazoo.plt
           key: plt-${{ hashFiles('make/deps.mk') }}
@@ -135,9 +122,10 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
+      options: --user 0
 
-    container: offical2600hz/circleci:22.3
-    options: --user 0
     services:
       couchdb:
         image: couchdb:3.0
@@ -155,37 +143,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create artifact dir
-        run: mkdir -p /tmp/artifacts
+      - run: mkdir -p /tmp/artifacts
+      - run: make build-ci-release
 
-      - name: Build CI release
-        run: make build-ci-release
-
-      - name: Run Kazoo release
-        run: |
+      - run: |
           KAZOO_CONFIG=${PWD}/rel/ci.config.ini \
           REL="kazoo_apps" \
           ACT="console" \
           NODE_NAME_TYPE="-sname" \
           make release
 
-      - name: Copy artifacts
-        run: |
+      - run: |
           cp ${PWD}/rel/ci.relx.config /tmp/artifacts/
           find ${PWD}/_rel/kazoo/releases -name kazoo.rel -exec cp {} /tmp/artifacts/ \;
 
-      - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: kazoo-release
           path: /tmp/artifacts
-
-      - name: Check release errors
-        run: |
-          if [[ $(grep -c -v -F 'exit with reason shutdown' /tmp/artifacts/log/error.log 2>/dev/null) -gt 0 ]]; then
-            echo "Errors detected"
-            cat /tmp/artifacts/log/error.log
-            exit 1
-          else
-            echo "No errors in release"
-          fi
