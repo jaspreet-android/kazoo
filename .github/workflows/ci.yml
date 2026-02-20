@@ -32,8 +32,10 @@ jobs:
         run: |
           echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
           echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo 'dep_apns = git https://github.com/inaka/apns4erl.git master' >> make/deps.mk
+
           echo "---- deps added ----"
-          grep -E 'erlsom|poolboy' make/deps.mk
+          grep -E 'erlsom|poolboy|apns' make/deps.mk
           cat make/deps.mk | grep erlsom
       - uses: actions/cache@v4
         with:
@@ -58,8 +60,10 @@ jobs:
         run: |
           echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
           echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo 'dep_apns = git https://github.com/inaka/apns4erl.git master' >> make/deps.mk
+
           echo "---- deps added ----"
-          grep -E 'erlsom|poolboy' make/deps.mk
+          grep -E 'erlsom|poolboy|apns' make/deps.mk
       - run: JOBS="2" make
 
 # ---------------- TESTS ----------------
@@ -76,8 +80,10 @@ jobs:
         run: |
           echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
           echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo 'dep_apns = git https://github.com/inaka/apns4erl.git master' >> make/deps.mk
+
           echo "---- deps added ----"
-          grep -E 'erlsom|poolboy' make/deps.mk
+          grep -E 'erlsom|poolboy|apns' make/deps.mk
       - run: ERLC_OPTS='-DPROPER' make compile-test
       - run: make eunit
 
@@ -95,9 +101,10 @@ jobs:
         run: |
           echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
           echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo 'dep_apns = git https://github.com/inaka/apns4erl.git master' >> make/deps.mk
+
           echo "---- deps added ----"
-          grep -E 'erlsom|poolboy' make/deps.mk
-      - run: make fmt
+          grep -E 'erlsom|poolboy|apns' make/deps.mk
       - run: make code_checks
       - run: make app_applications
       - run: make sup_completion
@@ -119,8 +126,10 @@ jobs:
         run: |
           echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
           echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo 'dep_apns = git https://github.com/inaka/apns4erl.git master' >> make/deps.mk
+
           echo "---- deps added ----"
-          grep -E 'erlsom|poolboy' make/deps.mk
+          grep -E 'erlsom|poolboy|apns' make/deps.mk
       - run: make apis
       - run: make validate-js
       - run: make validate-schemas
@@ -148,9 +157,10 @@ jobs:
         run: |
           echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
           echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
-          echo "---- deps added ----"
-          grep -E 'erlsom|poolboy' make/deps.mk
+          echo 'dep_apns = git https://github.com/inaka/apns4erl.git master' >> make/deps.mk
 
+          echo "---- deps added ----"
+          grep -E 'erlsom|poolboy|apns' make/deps.mk
       - run: make build-plt
       - run: make dialyze-changed
 
@@ -182,9 +192,10 @@ jobs:
         run: |
           echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
           echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo 'dep_apns = git https://github.com/inaka/apns4erl.git master' >> make/deps.mk
+
           echo "---- deps added ----"
-          grep -E 'erlsom|poolboy' make/deps.mk
-          cat make/deps.mk | grep erlsom
+          grep -E 'erlsom|poolboy|apns' make/deps.mk
       - run: mkdir -p /tmp/artifacts
       - run: make build-ci-release
 
