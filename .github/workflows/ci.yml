@@ -75,9 +75,9 @@ jobs:
       image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
 
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: build
+#      - uses: actions/download-artifact@v4
+#        with:
+#          name: build
 
       - name: Compile for test environment
         run: make compile-test
