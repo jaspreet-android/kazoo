@@ -61,6 +61,8 @@ jobs:
         run: cd /__w/kazoo/kazoo && rebar3 compile
 
       - name: Upload build artifact
+      run: |
+        ls -l /__w/kazoo/kazoo/_build
         uses: actions/upload-artifact@v4
         with:
           name: build
