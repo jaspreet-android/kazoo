@@ -76,14 +76,14 @@ jobs:
 
     steps:
       - uses: actions/download-artifact@v4
-#        with:
-#          name: build
+        with:
+          name: build
 
       - name: Compile for test environment
-#        run: make compile-test
+        run: make compile-test
 
       - name: Run EUnit tests
-#        run: make eunit
+        run: make eunit
 
 
   analyze:
