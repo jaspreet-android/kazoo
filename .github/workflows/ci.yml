@@ -1,4 +1,4 @@
-name: Kazoo CI/CD
+name: Kazoo CI/CD test
 
 on:
   push:
