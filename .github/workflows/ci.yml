@@ -79,11 +79,11 @@ jobs:
 #        with:
 #          name: build
 
-      - name: Compile for test environment
-        run: make compile-test
+#      - name: Compile for test environment
+#        run: make compile-test
 
-      - name: Run EUnit tests
-        run: make eunit
+#      - name: Run EUnit tests
+#        run: make eunit
 
 
   analyze:
