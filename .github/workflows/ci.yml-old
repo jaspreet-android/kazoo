@@ -1,0 +1,216 @@
+name: Kazoo CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+
+jobs:
+
+# ---------------- SETUP ----------------
+  setup:
+    runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
+      options: --user 0
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: make changed
+
+# ---------------- BUILD DEPS ----------------
+  build_deps:
+    needs: setup
+    runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
+      options: --user 0
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix missing erlsom poolboy dependency
+        run: |
+          echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
+          echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo 'dep_apns = git https://github.com/inaka/apns4erl.git master' >> make/deps.mk
+
+          echo "---- deps added ----"
+          grep -E 'erlsom|poolboy|apns' make/deps.mk
+          cat make/deps.mk | grep erlsom
+      - uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            .git/.kz_deps_hash
+          key: deps-${{ hashFiles('make/deps.mk') }}
+
+      - run: make deps
+
+# ---------------- BUILD ----------------
+  build:
+    needs: build_deps
+    runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
+      options: --user 0
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix missing erlsom poolboy dependency
+        run: |
+          echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
+          echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo 'dep_apns = git https://github.com/inaka/apns4erl.git master' >> make/deps.mk
+
+          echo "---- deps added ----"
+          grep -E 'erlsom|poolboy|apns' make/deps.mk
+      - run: JOBS="2" make
+
+# ---------------- TESTS ----------------
+  eunit_tests:
+    needs: build_deps
+    runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
+      options: --user 0
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix missing erlsom poolboy dependency
+        run: |
+          echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
+          echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo 'dep_apns = git https://github.com/inaka/apns4erl.git master' >> make/deps.mk
+
+          echo "---- deps added ----"
+          grep -E 'erlsom|poolboy|apns' make/deps.mk
+      - run: ERLC_OPTS='-DPROPER' make compile-test
+      - run: make eunit
+
+# ---------------- CHECKS ----------------
+  checks:
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
+      options: --user 0
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix missing erlsom poolboy dependency
+        run: |
+          echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
+          echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo 'dep_apns = git https://github.com/inaka/apns4erl.git master' >> make/deps.mk
+
+          echo "---- deps added ----"
+          grep -E 'erlsom|poolboy|apns' make/deps.mk
+      - run: make code_checks
+      - run: make app_applications
+      - run: make sup_completion
+      - run: make xref
+      - run: make elvis
+      - run: scripts/check-unstaged.bash
+
+# ---------------- DOCS ----------------
+  docs:
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
+      options: --user 0
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix missing erlsom poolboy dependency
+        run: |
+          echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
+          echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo 'dep_apns = git https://github.com/inaka/apns4erl.git master' >> make/deps.mk
+
+          echo "---- deps added ----"
+          grep -E 'erlsom|poolboy|apns' make/deps.mk
+      - run: make apis
+      - run: make validate-js
+      - run: make validate-schemas
+      - run: make docs
+      - run: scripts/state-of-docs.py || true
+      - run: scripts/state-of-edoc.escript
+      - run: scripts/check-unstaged.bash
+
+# ---------------- ANALYZE ----------------
+  analyze:
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
+      options: --user 0
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/cache@v4
+        with:
+          path: .kazoo.plt
+          key: plt-${{ hashFiles('make/deps.mk') }}
+      - name: Fix missing erlsom poolboy dependency
+        run: |
+          echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
+          echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo 'dep_apns = git https://github.com/inaka/apns4erl.git master' >> make/deps.mk
+
+          echo "---- deps added ----"
+          grep -E 'erlsom|poolboy|apns' make/deps.mk
+      - run: make build-plt
+      - run: make dialyze-changed
+
+# ---------------- RELEASE ----------------
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: offical2600hz/circleci:22.3
+      options: --user 0
+
+    services:
+      couchdb:
+        image: couchdb:3.0
+        env:
+          COUCHDB_USER: admin
+          COUCHDB_PASSWORD: admin
+        ports:
+          - 5984:5984
+
+      rabbitmq:
+        image: 2600hz/rabbitmq
+        ports:
+          - 5672:5672
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix missing erlsom poolboy dependency
+        run: |
+          echo 'dep_erlsom = git https://github.com/willemdj/erlsom.git master' >> make/deps.mk
+          echo 'dep_poolboy = git https://github.com/devinus/poolboy.git master' >> make/deps.mk
+          echo 'dep_apns = git https://github.com/inaka/apns4erl.git master' >> make/deps.mk
+
+          echo "---- deps added ----"
+          grep -E 'erlsom|poolboy|apns' make/deps.mk
+      - run: mkdir -p /tmp/artifacts
+      - run: make build-ci-release
+
+      - run: |
+          KAZOO_CONFIG=${PWD}/rel/ci.config.ini \
+          REL="kazoo_apps" \
+          ACT="console" \
+          NODE_NAME_TYPE="-sname" \
+          make release
+
+      - run: |
+          cp ${PWD}/rel/ci.relx.config /tmp/artifacts/
+          find ${PWD}/_rel/kazoo/releases -name kazoo.rel -exec cp {} /tmp/artifacts/ \;
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kazoo-release
+          path: /tmp/artifacts
