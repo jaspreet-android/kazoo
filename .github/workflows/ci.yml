@@ -16,7 +16,7 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     container:
-      image: ${{ env.DOCKER_IMAGE }}
+      image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
       credentials:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -40,7 +40,7 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     container:
-      image: ${{ env.DOCKER_IMAGE }}
+      image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
       credentials:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -106,7 +106,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     container:
-      image: ${{ env.DOCKER_IMAGE }}
+      image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
       credentials:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -139,7 +139,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     container:
-      image: ${{ env.DOCKER_IMAGE }}
+      image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
       credentials:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -211,7 +211,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/') && github.ref_type == 'tag'
     runs-on: ubuntu-latest
     container:
-      image: ${{ env.DOCKER_IMAGE }}
+      image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
       credentials:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
