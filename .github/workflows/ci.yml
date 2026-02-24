@@ -1,28 +1,25 @@
-name: Kazoo CI/CD test
+name: Kazoo CI/CD
 
 on:
   push:
     branches:
-      - "**"
+      - '**'
     tags:
-      - "*.*.*"
-
-concurrency:
-  group: deploy-${{ github.ref }}
-  cancel-in-progress: false
-
-env:
-  DOCKER_IMAGE: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
+      - '[0-9]+.[0-9]+.[0-9]+'
 
 jobs:
-
+  # ─────────────────────────────────────────────
+  # JOB 1: SETUP
+  # ─────────────────────────────────────────────
   setup:
     runs-on: ubuntu-latest
     container:
       image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
-      options: --user 0
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Listing Changes
         run: make changed
@@ -32,115 +29,195 @@ jobs:
         with:
           name: workspace
           path: .
-          retention-days: 1
+          include-hidden-files: true
 
-
+  # ─────────────────────────────────────────────
+  # JOB 2: BUILD
+  # ─────────────────────────────────────────────
   build:
     needs: setup
     runs-on: ubuntu-latest
     container:
       image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
-      options: --user 0 
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download workspace
+        uses: actions/download-artifact@v4
         with:
           name: workspace
+          path: .
 
       - name: Fix permissions
-        run: sudo chown -R $(whoami):$(whoami) .
+        run: chown -R $(whoami):$(whoami) .
 
-      - name: Cache rebar3
+      - name: Cache rebar3 dependencies
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/rebar3
-            _build
-          key: rebar3-${{ hashFiles('rebar.config') }}
+            _build/default/lib
+          key: rebar3-cache-${{ hashFiles('rebar.config') }}
+          restore-keys: |
+            rebar3-cache-
 
       - name: Compile project
-        run: rebar3 compile
+        run: |
+          set -e
+          rebar3 compile
 
-      - name: Upload build artifact
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: build
-          path: _build
-          retention-days: 1
+          name: build-output
+          path: _build/
 
-
+  # ─────────────────────────────────────────────
+  # JOB 3: EUNIT TESTS
+  # ─────────────────────────────────────────────
   eunit_tests:
     needs: build
     runs-on: ubuntu-latest
     container:
       image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
-      options: --user 0
-
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download workspace
+        uses: actions/download-artifact@v4
         with:
-          name: build
+          name: workspace
+          path: .
 
-      - name: Compile for test environment
-        run: make compile-test
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: _build/
 
-      - name: Run EUnit tests
-        run: make eunit
+      - name: Compile for unit test environment
+        run: |
+          set -e
+          make compile-test
 
+      - name: Run Eunit tests
+        run: |
+          set -e
+          make eunit
 
+  # ─────────────────────────────────────────────
+  # JOB 4: ANALYZE (DIALYZER)
+  # ─────────────────────────────────────────────
   analyze:
     needs: build
     runs-on: ubuntu-latest
     container:
       image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
-      
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download workspace
+        uses: actions/download-artifact@v4
         with:
-          name: build
+          name: workspace
+          path: .
 
-      - name: Cache PLT
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: _build/
+
+      - name: Cache PLT file
         uses: actions/cache@v4
         with:
           path: .kazoo.plt
-          key: plt-${{ hashFiles('make/deps.mk') }}
+          key: plt-v2-${{ hashFiles('make/deps.mk') }}
+          restore-keys: |
+            plt-v2-
 
-      - name: Build PLT
-        run: make build-plt
+      - name: Build PLT file
+        run: |
+          set -e
+          make build-plt
 
-      - name: Run Dialyzer
-        run: rebar3 dialyzer
+      - name: Run Dialyzer with detailed progress
+        timeout-minutes: 45
+        run: |
+          set -euo pipefail
+          START_TIME=$(date +%s)
+          echo "Starting Dialyzer analysis at $(date)"
 
+          show_progress() {
+            while true; do
+              sleep 10
+              CURRENT_TIME=$(date +%s)
+              ELAPSED=$((CURRENT_TIME - START_TIME))
+              MINUTES=$((ELAPSED / 60))
+              SECONDS=$((ELAPSED % 60))
+              echo "[${MINUTES}m ${SECONDS}s] Dialyzer analysis in progress..."
+            done
+          }
 
+          show_progress &
+          PROGRESS_PID=$!
+
+          rebar3 dialyzer
+          EXIT_CODE=$?
+
+          kill $PROGRESS_PID 2>/dev/null || true
+          wait $PROGRESS_PID 2>/dev/null || true
+
+          END_TIME=$(date +%s)
+          TOTAL_TIME=$((END_TIME - START_TIME))
+          TOTAL_MINUTES=$((TOTAL_TIME / 60))
+          TOTAL_SECONDS=$((TOTAL_TIME % 60))
+
+          echo ""
+          echo "Dialyzer completed at $(date)"
+          echo "Total time: ${TOTAL_MINUTES}m ${TOTAL_SECONDS}s"
+          echo "Exit code: $EXIT_CODE"
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            exit $EXIT_CODE
+          fi
+
+  # ─────────────────────────────────────────────
+  # JOB 5: RELEASE (tags only)
+  # ─────────────────────────────────────────────
   release:
     needs: [build, eunit_tests, analyze]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-
     container:
       image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
-
     services:
       couchdb:
         image: couchdb:3.5.0
         env:
           COUCHDB_USER: admin
           COUCHDB_PASSWORD: admin
-        ports:
-          - 5984:5984
-
       rabbitmq:
         image: rabbitmq:3.7
-        ports:
-          - 5672:5672
-
+    env:
+      TZ: "UTC"
     steps:
-      - uses: actions/checkout@v4
+      - name: Download workspace
+        uses: actions/download-artifact@v4
+        with:
+          name: workspace
+          path: .
 
-      - name: Set version from tag
-        run: echo "KZ_VERSION=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: _build/
+
+      - name: Set KZ_VERSION from git tag
+        run: |
+          set -e
+          KZ_VERSION=$(git describe --tags --always)
+          echo "KZ_VERSION=${KZ_VERSION}" >> $GITHUB_ENV
+          echo "Building version: ${KZ_VERSION}"
 
       - name: Build and package release
         run: |
+          set -e
           make -f release.mk rel
           mkdir -p _build/default/rel/kazoo/log
           cd _build/default/rel
@@ -150,23 +227,37 @@ jobs:
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release
+          name: kazoo-release
           path: _build/default/rel/sipe-*.tgz
-          retention-days: 7
 
-
-  deploy:
+  # ─────────────────────────────────────────────
+  # JOB 6: DEPLOY TO EC2 INSTANCES (tags only)
+  # ─────────────────────────────────────────────
+  deploy_to_instances:
     needs: release
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-
+    env:
+      AWS_PAGER: ""
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download workspace
+        uses: actions/download-artifact@v4
         with:
-          name: release
+          name: workspace
+          path: .
 
-      - name: Set version
-        run: echo "KZ_VERSION=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kazoo-release
+          path: _build/default/rel/
+
+      - name: Set KZ_VERSION from git tag
+        run: |
+          set -e
+          KZ_VERSION=$(git describe --tags --always)
+          echo "KZ_VERSION=${KZ_VERSION}" >> $GITHUB_ENV
+          echo "KZ_VERSION: ${KZ_VERSION}"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -175,44 +266,185 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Install AWS CLI v2
+        run: |
+          set -e
+          echo "Installing AWS CLI v2..."
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          apt-get update && apt-get install -y unzip
+          unzip awscliv2.zip
+          ./aws/install
+          aws --version
+
+      - name: Verify AWS identity
+        run: |
+          echo "=== AWS Identity Check ==="
+          aws sts get-caller-identity
+          echo "=========================="
+
       - name: Upload artifact to S3
         run: |
-          ARTIFACT=$(find . -name "sipe-${KZ_VERSION}.tgz" | head -n1)
-          aws s3 cp "$ARTIFACT" \
-            "s3://${{ secrets.S3_RELEASES_BUCKET }}/sipe-${KZ_VERSION}.tgz"
+          set -e
 
-      - name: Deploy to EC2 via SSM
+          ARTIFACT_PATH=$(find _build/default/rel -name "sipe-${KZ_VERSION}.tgz" -type f | head -n1)
+
+          if [ -z "$ARTIFACT_PATH" ]; then
+            echo "ERROR: Could not find sipe-${KZ_VERSION}.tgz"
+            ls -lah _build/default/rel/ || echo "Directory does not exist"
+            exit 1
+          fi
+
+          echo "Found artifact: ${ARTIFACT_PATH}"
+          echo "Uploading to s3://${{ secrets.S3_RELEASES_BUCKET }}/sipe-${KZ_VERSION}.tgz"
+
+          aws s3 cp "${ARTIFACT_PATH}" \
+            "s3://${{ secrets.S3_RELEASES_BUCKET }}/sipe-${KZ_VERSION}.tgz" \
+            --region "${{ secrets.AWS_REGION }}"
+
+          echo "Upload complete!"
+
+      - name: Deploy to EC2 instances via SSM
+        env:
+          INSTANCE_ID_1: ${{ secrets.INSTANCE_ID_1 }}
+          INSTANCE_ID_2: ${{ secrets.INSTANCE_ID_2 }}
+          INSTANCE_ID_3: ${{ secrets.INSTANCE_ID_3 }}
+          S3_RELEASES_BUCKET: ${{ secrets.S3_RELEASES_BUCKET }}
+          S3_LOGS_BUCKET: ${{ secrets.S3_LOGS_BUCKET }}
+          AWS_REGION_VAL: ${{ secrets.AWS_REGION }}
         run: |
-          S3_PATH="s3://${{ secrets.S3_RELEASES_BUCKET }}/sipe-${KZ_VERSION}.tgz"
+          set -e
 
-          cat > ssm-params.json <<EOF
-          {
-            "commands": [
-              "set -e",
-              "cd /tmp",
-              "aws s3 cp ${S3_PATH} sipe-${KZ_VERSION}.tgz",
-              "tar -xzf sipe-${KZ_VERSION}.tgz",
-              "sudo systemctl stop kazoo-ecallmgr",
-              "sudo systemctl stop kazoo-applications",
-              "sudo ln -sfn /opt/sipe-${KZ_VERSION} /opt/kazoo",
-              "sudo systemctl start kazoo-applications",
-              "sudo systemctl start kazoo-ecallmgr"
-            ]
-          }
-          EOF
+          S3_PATH="s3://${S3_RELEASES_BUCKET}/sipe-${KZ_VERSION}.tgz"
+
+          echo "=== Deployment Info ==="
+          echo "Version:    ${KZ_VERSION}"
+          echo "Instance 1: ${INSTANCE_ID_1}"
+          echo "Instance 2: ${INSTANCE_ID_2}"
+          echo "Instance 3: ${INSTANCE_ID_3}"
+          echo "Artifact:   ${S3_PATH}"
+          echo "Region:     ${AWS_REGION_VAL}"
+          echo "======================="
+
+          cat > /tmp/build_ssm.py <<'PYEOF'
+          import json, os
+
+          kz_version = os.environ['KZ_VERSION']
+          s3_path    = os.environ['S3_PATH']
+          aws_region = os.environ['AWS_REGION_VAL']
+
+          commands = [
+          "#!/bin/bash",
+          "set -euo pipefail",
+          "KZ_VERSION='" + kz_version + "'",
+          "S3_PATH='"    + s3_path    + "'",
+          "AWS_REGION='" + aws_region + "'",
+          'echo "[$(date)] === Starting deployment of ' + kz_version + ' ==="',
+          "cd /tmp",
+          'echo "[$(date)] Downloading artifact from S3..."',
+          'aws s3 cp "${S3_PATH}" "sipe-${KZ_VERSION}.tgz" --region "${AWS_REGION}"',
+          'echo "[$(date)] Extracting archive..."',
+          'tar -xzf "sipe-${KZ_VERSION}.tgz"',
+          'LATEST_DIR="sipe-' + kz_version + '"',
+          'echo "[$(date)] Extracted directory: ${LATEST_DIR}"',
+          'INSTALL_PATH="/opt/${LATEST_DIR}"',
+          'echo "[$(date)] Install path: ${INSTALL_PATH}"',
+          'if [[ ! -d "${INSTALL_PATH}" ]]; then sudo mv "${LATEST_DIR}" /opt/; else echo "${INSTALL_PATH} already exists, skipping move."; fi',
+          'sudo chown -R kazoo:daemon "${INSTALL_PATH}"',
+          'echo "[$(date)] Stopping kazoo services..."',
+          'sudo systemctl stop kazoo-ecallmgr',
+          'sudo systemctl stop kazoo-applications',
+          'sleep 3',
+          'echo "[$(date)] Updating symlink /opt/kazoo -> ${INSTALL_PATH}"',
+          'sudo ln -sfn "${INSTALL_PATH}" /opt/kazoo',
+          'echo "[$(date)] Starting kazoo services..."',
+          'sudo systemctl start kazoo-applications',
+          'sleep 5',
+          'sudo systemctl start kazoo-ecallmgr',
+          'echo "[$(date)] Verifying services..."',
+          "sudo systemctl is-active kazoo-applications && echo 'kazoo-applications: OK' || (echo 'kazoo-applications: FAILED' && exit 1)",
+          "sudo systemctl is-active kazoo-ecallmgr    && echo 'kazoo-ecallmgr: OK'    || (echo 'kazoo-ecallmgr: FAILED' && exit 1)",
+          'echo "[$(date)] Upgraded to: ${INSTALL_PATH}" | sudo tee -a /var/log/kazoo-upgrade.log',
+          'rm -f "/tmp/sipe-' + kz_version + '.tgz"',
+          'echo "[$(date)] === Deployment complete! ==="',
+          ]
+
+          with open('/tmp/ssm-params.json', 'w') as f:
+              json.dump({"commands": commands}, f, indent=2)
+
+          print("SSM params JSON written successfully.")
+          PYEOF
+
+          KZ_VERSION="${KZ_VERSION}" S3_PATH="${S3_PATH}" AWS_REGION_VAL="${AWS_REGION_VAL}" \
+          python3 /tmp/build_ssm.py
+
+          echo "--- SSM parameters file ---"
+          cat /tmp/ssm-params.json
+          echo "---------------------------"
+
+          python3 -m json.tool /tmp/ssm-params.json > /dev/null && echo "JSON is valid!"
 
           COMMAND_ID=$(aws ssm send-command \
-            --instance-ids \
-              "${{ secrets.INSTANCE_ID_1 }}" \
-              "${{ secrets.INSTANCE_ID_2 }}" \
-              "${{ secrets.INSTANCE_ID_3 }}" \
-            --document-name "AWS-RunShellScript" \
-            --parameters file://ssm-params.json \
-            --output text \
-            --query "Command.CommandId")
+          --instance-ids "${INSTANCE_ID_1}" "${INSTANCE_ID_2}" "${INSTANCE_ID_3}" \
+          --document-name "AWS-RunShellScript" \
+          --comment "Deploy Kazoo ${KZ_VERSION}" \
+          --parameters file:///tmp/ssm-params.json \
+          --output-s3-bucket-name "${S3_LOGS_BUCKET}" \
+          --region "${AWS_REGION_VAL}" \
+          --query "Command.CommandId" \
+          --output text)
 
-          echo "SSM Command ID: $COMMAND_ID"
+          if [ -z "${COMMAND_ID}" ]; then
+            echo "ERROR: Failed to send SSM command — no CommandId returned."
+            exit 1
+          fi
 
-          aws ssm wait command-executed \
-            --command-id "$COMMAND_ID" \
-            --instance-id "${{ secrets.INSTANCE_ID_1 }}"
+          echo "SSM Command ID: ${COMMAND_ID}"
+          echo "Polling for completion (timeout: 10 minutes)..."
+
+          MAX_WAIT=600
+          POLL_INTERVAL=15
+          ELAPSED=0
+
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            sleep $POLL_INTERVAL
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
+
+            IN_PROGRESS=$(aws ssm list-command-invocations \
+            --command-id "${COMMAND_ID}" \
+            --region "${AWS_REGION_VAL}" \
+            --query "length(CommandInvocations[?Status=='InProgress' || Status=='Pending'])" \
+            --output text)
+
+            echo "[${ELAPSED}s] In-progress invocations: ${IN_PROGRESS}"
+
+            if [ "${IN_PROGRESS}" == "0" ]; then
+              echo "All invocations finished."
+              break
+            fi
+          done
+
+          echo ""
+          echo "=== Command Output Per Instance ==="
+          for INSTANCE in "${INSTANCE_ID_1}" "${INSTANCE_ID_2}" "${INSTANCE_ID_3}"; do
+            echo "--- ${INSTANCE} ---"
+            aws ssm get-command-invocation \
+            --command-id "${COMMAND_ID}" \
+            --instance-id "${INSTANCE}" \
+            --region "${AWS_REGION_VAL}" \
+            --query "{Status:Status,ExitCode:ResponseCode,Stdout:StandardOutputContent,Stderr:StandardErrorContent}" \
+            --output json || echo "Could not retrieve output for ${INSTANCE}"
+            echo ""
+          done
+
+          FAILED=$(aws ssm list-command-invocations \
+          --command-id "${COMMAND_ID}" \
+          --region "${AWS_REGION_VAL}" \
+          --query "length(CommandInvocations[?Status=='Failed' || Status=='TimedOut' || Status=='Cancelled' || Status=='DeliveryTimedOut'])" \
+          --output text)
+
+          if [ "${FAILED}" != "0" ]; then
+            echo "ERROR: ${FAILED} instance(s) failed deployment!"
+            exit 1
+          fi
+
+          echo "All instances deployed successfully!"
