@@ -17,9 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
-      credentials:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
     defaults:
       run:
         shell: bash --login {0}
@@ -41,9 +38,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
-      credentials:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
     defaults:
       run:
         shell: bash --login {0}
@@ -107,9 +101,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
-      credentials:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
     defaults:
       run:
         shell: bash --login {0}
@@ -140,9 +131,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
-      credentials:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
     defaults:
       run:
         shell: bash --login {0}
@@ -212,23 +200,17 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
-      credentials:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
     services:
       couchdb:
         image: couchdb:3.5.0
         credentials:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: admin
+          password: admin
         env:
           COUCHDB_USER: admin
           COUCHDB_PASSWORD: admin
       rabbitmq:
         image: rabbitmq:3.7
-        credentials:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
     env:
       TZ: UTC
     defaults:
