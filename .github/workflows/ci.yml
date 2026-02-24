@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
+      options: --user 0
     defaults:
       run:
         shell: bash --login {0}
@@ -38,6 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
+      options: --user 0
     defaults:
       run:
         shell: bash --login {0}
@@ -101,6 +103,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
+      options: --user 0
     defaults:
       run:
         shell: bash --login {0}
@@ -131,6 +134,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
+      options: --user 0
     defaults:
       run:
         shell: bash --login {0}
@@ -200,6 +204,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: aks1492/kazoo-erlang:otp23.3.4-elixir1.12.3-v2
+      options: --user 0
     services:
       couchdb:
         image: couchdb:3.5.0
